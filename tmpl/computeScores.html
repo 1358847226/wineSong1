@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <div>
+        {{range $i , $v := .}}
+        <div class="row">
+            <div style="text-align: center">
+                {{range $ii , $vv := $v}}
+                    <div class="mahjong" draggable="true" ondragstart="drag(event)"><button onclick="selectMahjong('{{$vv.Name}}')">{{$vv.Name}}</button></div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+        <div class="row">
+            <select id="wind">
+                <option value ="东风">东风</option>
+                <option value ="南风">南风</option>
+                <option value="西风">西风</option>
+                <option value="北风">北风</option>
+            </select>
+            拖拽设置左得：
+            <div class="mahjong zuode" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <button id="zuode">白板</button>
+            </div>
+        </div>
+        <div class="row" >
+            <div class="ming" id="selectedMahjong"></div>
+            <div class="an" id="selectedMahjongAn"></div>
+        </div>
+        <div class="row">
+            <button onclick="submit(1)">放炮算胡</button>
+            <button onclick="submit(2)">自摸算胡</button>
+        </div>
+        <div class="row" id="mahjong"></div>
+        <div class="row" id="res"></div>
+    </div>
+</body>
+<style>
+    .row{
+        width: 100%;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .zuode{
+        width: 500px;
+        height: 90px;
+        border: 2px dashed darkgray;
+        border-radius: 5px;
+    }
+    .mahjong{
+        display: inline-block;
+        width: 10%;
+    }
+    .mahjong button{
+        width: 48px;
+        font-size: 24px;
+        writing-mode: tb;
+        height: 90px;
+    }
+    .hu{
+        width: 6%;
+        margin-right: 10px;
+    }
+    .ming{
+        width: 100%;
+        height: 90px;
+        display: flex;
+    }
+    .an{
+        width: 100%;
+        height: 90px;
+        display: flex;
+    }
+</style>
+<script>
+    const selectedMahjong = [];
+    const selectedMahjongAn = [];
+    let lastMahjong = [];
+    let zuode = ""
+    function allowDrop(ev)
+    {
+        ev.preventDefault();
+    }
+
+    function drag(ev)
+    {
+        ev.dataTransfer.setData("Text",ev.target.id);
+    }
+
+    function drop(ev)
+    {
+        zuode = ev.path[0].ownerDocument.activeElement.innerHTML
+        document.getElementById("zuode").innerHTML = zuode
+    }
+
+    function selectMahjong(e) {
+        let count = 0
+        for (let i = 0 ; i < selectedMahjong.length ; i ++){
+            if (selectedMahjong[i] == e){
+                count ++
+            }
+        }
+        for (let i = 0 ; i < selectedMahjongAn.length ; i ++){
+            if (selectedMahjongAn[i] == e){
+                count ++
+            }
+        }
+        if (count < 4){
+            selectedMahjong.push(e)
+            lastMahjong.push(e)
+        }else{
+            alert("每种只有4个")
+        }
+        showSelectedMahjong()
+    }
+    function showSelectedMahjong() {
+        let mahjongHTML = "明";
+        for (let i = 0 ; i < selectedMahjong.length ; i ++){
+            mahjongHTML += '<div class="mahjong hu" ><button onclick="setMahjongAn(\''+ selectedMahjong[i] +'\');">'+ selectedMahjong[i] +'</button></div>'
+        }
+        document.getElementById("selectedMahjong").innerHTML = mahjongHTML
+        let mahjongHTMLAn = "暗";
+        for (let i = 0 ; i < selectedMahjongAn.length ; i ++){
+            mahjongHTMLAn += '<div class="mahjong hu" ><button onclick="removeMahjongAn(\''+ selectedMahjongAn[i] +'\');">'+ selectedMahjongAn[i] +'</button></div>'
+        }
+        document.getElementById("selectedMahjongAn").innerHTML = mahjongHTMLAn
+    }
+
+    function setMahjongAn(e) {
+        console.log("set",e)
+        removeMahjong(e)
+        selectedMahjongAn.push(e)
+        lastMahjong.push(e)
+        showSelectedMahjong()
+    }
+
+    function removeMahjong(e) {
+        for (let i = 0 ; i < selectedMahjong.length ; i ++){
+            if (selectedMahjong[i] == e){
+                selectedMahjong.splice(i , 1)
+                return
+            }
+        }
+        showSelectedMahjong()
+    }
+
+    function removeMahjongAn(e) {
+        for (let i = 0 ; i < selectedMahjongAn.length ; i ++){
+            if (selectedMahjongAn[i] == e){
+                selectedMahjongAn.splice(i , 1)
+                lastMahjong.splice(i , 1)
+                showSelectedMahjong()
+                return
+            }
+        }
+    }
+    function submit(e) {
+        let wind = document.getElementById("wind")
+        let index = wind.selectedIndex
+        let myWind = wind.options[index].value
+        console.log(myWind)
+        let raw = JSON.stringify({
+            "lastMahjong":lastMahjong[lastMahjong.length - 1],
+            "zimo":e,
+            "zuode":zuode,
+            "wind":myWind,
+            "selectedMahjong":selectedMahjong,
+            "selectedMahjongAn":selectedMahjongAn,
+        });
+        let requestOptions = {
+            method: 'POST',
+            body: raw,
+            redirect: 'follow'
+        };
+        fetch("../../GetScores", requestOptions)
+            .then(response => response.json())
+            .then(function (result) {
+                if (result.data.scores > 0){
+                    let mahjongHTML = document.getElementById("mahjong")
+                    mahjongHTML.innerHTML = ""
+                    for (let i = 0 ; i < result.data.str.length ; i ++){
+                        mahjongHTML.innerHTML += '<div class="mahjong hu" ><button>' + result.data.str[i].name + '</button></div>'
+                    }
+                    let resHTML = document.getElementById("res")
+                    resHTML.innerHTML = result.data.scores + "胡"
+                }else{
+                    let resHTML = document.getElementById("res")
+                    resHTML.innerHTML = "诈胡"
+                }
+            })
+            .catch(function (error) {
+                console.log(error)
+            })
+    }
+</script>
+</html>
